@@ -6,6 +6,11 @@ This project is an AI-based system designed to predict potential rockfall incide
 
 The system processes multi-source data inputs, starting with topographical and environmental data, to train a machine learning model that can identify patterns preceding rockfall events.
 
+
+<img width="1024" height="1024" alt="unnamed (2)" src="https://github.com/user-attachments/assets/7cb1a42e-66e6-4526-beca-3aa6133494ba" />
+
+
+
 ###  Core Idea
 
 Our approach is to build a robust dataset by combining historical landslide data with relevant geographical and environmental features. This enriched dataset will be the foundation for training a predictive model capable of assessing rockfall risk in real-time.
