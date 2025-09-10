@@ -40,32 +40,6 @@ To get a local copy up and running, follow these simple steps.
 3.  **NASA Global Landslide Catalog:** Download the dataset and place it in the project's root directory.
     * File needed: `Global_Landslide_Catalog_Export_rows.csv`
 
-### Installation
-
-1.  **Clone the repo**
-    ```sh
-    git clone [https://github.com/your_username/your_repository.git](https://github.com/your_username/your_repository.git)
-    cd your_repository
-    ```
-
-2.  **Create a virtual environment (recommended)**
-    ```sh
-    python -m venv venv
-    source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-    ```
-
-3.  **Install dependencies from `requirements.txt`**
-    ```sh
-    pip install -r requirements.txt
-    ```
-    *(Note: A `requirements.txt` file should contain the following libraries)*
-    ```
-    pandas
-    earthaccess
-    rasterio
-    tqdm
-    jupyter
-    ```
 
 ### Execution
 
