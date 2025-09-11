@@ -2,7 +2,8 @@ import csv
 import requests
 from datetime import datetime, timedelta
 import time
-from tqdm import tqdm # Import tqdm
+from tqdm import tqdm
+import os
 
 def calculate_slope(y_values):
     """Calculates the slope of a line for a list of y-values over x = [0, 1, 2...]."""
@@ -21,6 +22,18 @@ def calculate_slope(y_values):
 
     return numerator / denominator if denominator != 0 else 0.0
 
+def parse_flexible_date(date_str, formats):
+    """
+    Tries to parse a date string using a list of possible formats.
+    Returns a datetime object on success, or None on failure.
+    """
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            pass  # If this format fails, try the next one
+    return None # Return None if all formats failed
+
 def engineer_features(weather_data, latitude, longitude, event_date_str):
     """
     Takes 10 days of weather data and engineers features for a predictive model.
@@ -30,7 +43,6 @@ def engineer_features(weather_data, latitude, longitude, event_date_str):
     hourly = weather_data.get('hourly', {})
 
     if not daily or not daily.get('time') or len(daily['time']) < 10:
-        # print(f"--> Warning: Incomplete daily data for event on {event_date_str}. Skipping feature engineering.") # Removed print
         return None
 
     # --- Extract daily and hourly lists ---
@@ -78,37 +90,44 @@ def engineer_features(weather_data, latitude, longitude, event_date_str):
 def process_events_and_fetch_weather(input_csv_filepath, output_csv_filepath):
     """
     Reads events, fetches pre-event weather data, engineers features,
-    and saves the results to a new CSV file.
+    and saves the results to a new CSV file in batches.
     """
-    featured_data = []
+    featured_data_batch = []
+    header_written = False
+    batch_size = 100
+
+    # Before starting, remove the old output file if it exists to avoid appending to old data
+    if os.path.exists(output_csv_filepath):
+        os.remove(output_csv_filepath)
+
     try:
         with open(input_csv_filepath, mode='r', encoding='utf-8') as infile:
             reader = csv.DictReader(infile)
-            rows = list(reader) # Read all rows into a list to get the total count
+            rows = list(reader)
 
-            for row in tqdm(rows, desc="Processing Events"): # Wrap the loop with tqdm
+            for row in tqdm(rows, desc="Processing Events"):
                 latitude = row.get('latitude')
                 longitude = row.get('longitude')
                 event_date_str = row.get('event_date')
 
                 if not all([latitude, longitude, event_date_str]):
-                    # print(f"Skipping row due to missing data: {row}") # Removed print
                     continue
 
-                # print(f"Processing event at Lat: {latitude}, Lon: {longitude} on {event_date_str}") # Removed print
+                possible_formats = [
+                    '%Y-%m-%d %H:%M:%S',
+                    '%m/%d/%Y %I:%M:%S %p',
+                    '%Y-%m-%d'
+                ]
+                event_date_obj = parse_flexible_date(event_date_str, possible_formats)
 
-                # 1. Adjust date range to be the 10 days *before* the event
-                try:
-                    event_date_obj = datetime.strptime(event_date_str, '%m/%d/%Y %I:%M:%S %p')
-                    end_date_obj = event_date_obj - timedelta(days=1)
-                    start_date_obj = end_date_obj - timedelta(days=9) # 9 days before end_date = 10 total days
-                    start_date_api_format = start_date_obj.strftime('%Y-%m-%d')
-                    end_date_api_format = end_date_obj.strftime('%Y-%m-%d')
-                except ValueError:
-                    # print(f"Skipping row due to invalid date format: {event_date_str}") # Removed print
+                if event_date_obj is None:
                     continue
 
-                # 2. Construct API URL with all necessary params
+                end_date_obj = event_date_obj - timedelta(days=1)
+                start_date_obj = end_date_obj - timedelta(days=9)
+                start_date_api_format = start_date_obj.strftime('%Y-%m-%d')
+                end_date_api_format = end_date_obj.strftime('%Y-%m-%d')
+
                 base_url = "https://archive-api.open-meteo.com/v1/archive"
                 params = {
                     'latitude': latitude,
@@ -125,11 +144,26 @@ def process_events_and_fetch_weather(input_csv_filepath, output_csv_filepath):
                     response.raise_for_status()
                     weather_data = response.json()
 
-                    # 3. Perform feature engineering
                     event_features = engineer_features(weather_data, latitude, longitude, event_date_str)
                     if event_features:
-                        featured_data.append(event_features)
-                        # print(f"-> Successfully engineered features for event on {event_date_str}") # Removed print
+                        featured_data_batch.append(event_features)
+
+                    # --- BATCH SAVING LOGIC ---
+                    if len(featured_data_batch) >= batch_size:
+                        # If a full batch is ready, write it to the CSV
+                        try:
+                            fieldnames = list(featured_data_batch[0].keys())
+                            with open(output_csv_filepath, mode='a', newline='', encoding='utf-8') as outfile:
+                                writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+                                if not header_written:
+                                    writer.writeheader()
+                                    header_written = True
+                                writer.writerows(featured_data_batch)
+
+                            featured_data_batch = [] # Clear the batch after writing
+                        except IOError as e:
+                            print(f"Error writing a batch to file: {e}")
+
 
                 except requests.exceptions.RequestException as e:
                     print(f"-> API request failed for event on {event_date_str}: {e}")
@@ -140,25 +174,25 @@ def process_events_and_fetch_weather(input_csv_filepath, output_csv_filepath):
         print(f"Error: The file '{input_csv_filepath}' was not found.")
         return
 
-    # 4. Write the new featured data to the output CSV
-    if not featured_data:
-        print("No data was processed. Output file will not be created.")
-        return
+    # --- SAVE THE FINAL BATCH ---
+    # After the loop, write any remaining data that didn't form a full batch
+    if featured_data_batch:
+        try:
+            fieldnames = list(featured_data_batch[0].keys())
+            with open(output_csv_filepath, mode='a', newline='', encoding='utf-8') as outfile:
+                writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+                if not header_written:
+                    writer.writeheader()
+                    header_written = True
+                writer.writerows(featured_data_batch)
 
-    try:
-        fieldnames = list(featured_data[0].keys())
-        with open(output_csv_filepath, mode='w', newline='', encoding='utf-8') as outfile:
-            writer = csv.DictWriter(outfile, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(featured_data)
+        except IOError as e:
+            print(f"Error writing the final batch to file: {e}")
 
-        print(f"\nAll data successfully processed and saved to '{output_csv_filepath}'")
-
-    except IOError as e:
-        print(f"Error writing to file '{output_csv_filepath}': {e}")
+    print(f"\nAll data successfully processed and saved to '{output_csv_filepath}'")
 
 
 if __name__ == "__main__":
-    input_csv = 'landslides_hotspot_with_elevation(1).csv'
-    output_csv = 'featured_weather_data.csv'
+    input_csv = 'data/enhanced_landslide_negative_dataset.csv'
+    output_csv = 'data/featured_weather_negative_data.csv'
     process_events_and_fetch_weather(input_csv, output_csv)
