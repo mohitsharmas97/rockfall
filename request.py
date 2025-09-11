@@ -2,7 +2,7 @@ import csv
 import requests
 from datetime import datetime, timedelta
 import time
-from tqdm import tqdm # Import tqdm
+from tqdm import tqdm 
 
 def calculate_slope(y_values):
     """Calculates the slope of a line for a list of y-values over x = [0, 1, 2...]."""
