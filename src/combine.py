@@ -45,6 +45,7 @@ final_df = pd.concat([positive_df, negative_df], ignore_index=True)
 desired_columns = [
     'latitude',
     'longitude',
+    'event_date',
     'elevation',
     'slope',
     'aspect',
@@ -65,7 +66,7 @@ desired_columns = [
 final_df = final_df[desired_columns]
 
 # Save the combined and cleaned dataset to a new CSV file
-final_df.to_csv('combined_landslide_dataset.csv', index=False)
+final_df.to_csv('combined_landslide_dataset_new.csv', index=False)
 
 print("Combined dataset created successfully and saved as 'combined_landslide_dataset.csv'")
 print("\nFinal dataset info:")
