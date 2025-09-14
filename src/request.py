@@ -1,10 +1,10 @@
 import csv
 import requests
 from datetime import datetime, timedelta
-import time
 from tqdm import tqdm
 import os
 import concurrent.futures
+import time # <--- Import the time module
 
 # This function remains unchanged
 def process_daily_data_for_lstm(weather_data, event_id, latitude, longitude):
@@ -14,6 +14,10 @@ def process_daily_data_for_lstm(weather_data, event_id, latitude, longitude):
     """
     daily = weather_data.get('daily', {})
     hourly = weather_data.get('hourly', {})
+    
+    # Use the precise coordinates returned by the API
+    api_latitude = weather_data.get('latitude', latitude)
+    api_longitude = weather_data.get('longitude', longitude)
 
     # Data Completeness Checks
     daily_keys = ['time', 'precipitation_sum', 'rain_sum', 'temperature_2m_max', 'temperature_2m_min', 
@@ -42,22 +46,15 @@ def process_daily_data_for_lstm(weather_data, event_id, latitude, longitude):
         avg_humidity = get_daily_avg(hourly['relative_humidity_2m'])
 
         record = {
-            'event_id': event_id,
-            'day_index': i,
-            'date': daily['time'][i],
-            'latitude': latitude,
-            'longitude': longitude,
-            'daily_precip': daily['precipitation_sum'][i],
-            'daily_rain': daily['rain_sum'][i],
-            'daily_snow': daily['snowfall_sum'][i],
-            'precip_hours': daily['precipitation_hours'][i],
+            'event_id': event_id, 'day_index': i, 'date': daily['time'][i],
+            # **FIX**: Use the API-provided coordinates for consistency
+            'latitude': api_latitude, 'longitude': api_longitude,
+            'daily_precip': daily['precipitation_sum'][i], 'daily_rain': daily['rain_sum'][i],
+            'daily_snow': daily['snowfall_sum'][i], 'precip_hours': daily['precipitation_hours'][i],
             'et0_evapotranspiration': daily['et0_fao_evapotranspiration'][i],
-            'max_temp': daily['temperature_2m_max'][i],
-            'min_temp': daily['temperature_2m_min'][i],
-            'avg_soil_moisture_0_7cm': avg_soil_moisture_0_7,
-            'avg_soil_moisture_7_28cm': avg_soil_moisture_7_28,
-            'avg_snow_depth': avg_snow_depth,
-            'avg_relative_humidity': avg_humidity
+            'max_temp': daily['temperature_2m_max'][i], 'min_temp': daily['temperature_2m_min'][i],
+            'avg_soil_moisture_0_7cm': avg_soil_moisture_0_7, 'avg_soil_moisture_7_28cm': avg_soil_moisture_7_28,
+            'avg_snow_depth': avg_snow_depth, 'avg_relative_humidity': avg_humidity
         }
         daily_records.append(record)
         
@@ -72,12 +69,12 @@ def parse_flexible_date(date_str, formats):
             continue
     return None
 
-# NEW FUNCTION to handle a single row's fetching and processing
+# **FIXED** function to handle API errors (like 429) and use API coordinates
 def fetch_single_event(row_data):
     """
-    Fetches and processes data for a single event. Designed to be run in a separate thread.
+    Fetches and processes data for a single event, with retries for API rate limiting.
     """
-    i, row = row_data  # Unpack the tuple
+    i, row = row_data
     event_id = i + 1
     latitude = row.get('latitude')
     longitude = row.get('longitude')
@@ -90,7 +87,8 @@ def fetch_single_event(row_data):
     event_date_obj = parse_flexible_date(event_date_str, possible_formats)
 
     if event_date_obj is None:
-        print(f"Skipping row {event_id}: Could not parse date '{event_date_str}'")
+        # This print is optional if it's too noisy
+        # print(f"Skipping row {event_id}: Could not parse date '{event_date_str}'")
         return None
     
     end_date_obj = event_date_obj - timedelta(days=1)
@@ -107,57 +105,101 @@ def fetch_single_event(row_data):
         'end_date': end_date_api_format, 'daily': daily_params, 'hourly': hourly_params, 'timezone': 'GMT'
     }
 
-    try:
-        response = requests.get(base_url, params=params)
-        response.raise_for_status()
-        weather_data = response.json()
-        return process_daily_data_for_lstm(weather_data, event_id, latitude, longitude)
-    except requests.exceptions.RequestException as e:
-        print(f"-> API request failed for event ID {event_id}: {e}")
-        return None
+    # **FIX**: Add retry logic for handling 429 errors
+    max_retries = 5
+    backoff_factor = 2  # Start with a 2-second delay
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(base_url, params=params)
+            
+            # If we get a 429, wait and try again
+            if response.status_code == 429:
+                retry_after = attempt * backoff_factor + backoff_factor
+                print(f"-> Rate limit hit for event {event_id}. Retrying in {retry_after} seconds...")
+                time.sleep(retry_after)
+                continue # Go to the next attempt
 
-# MODIFIED main function to use the ThreadPoolExecutor
+            response.raise_for_status() # Raise an exception for other bad status codes (4xx or 5xx)
+            weather_data = response.json()
+            
+            # **FIX**: Pass the entire weather_data object to the processor
+            # This ensures the API-corrected coordinates are used
+            return process_daily_data_for_lstm(weather_data, event_id, latitude, longitude)
+
+        except requests.exceptions.RequestException as e:
+            print(f"-> API request failed for event {event_id} on attempt {attempt + 1}: {e}")
+            if attempt >= max_retries - 1:
+                return None # Failed all retries
+            time.sleep(backoff_factor) # Wait before the next retry
+
+    return None # Should not be reached if loop completes, but good practice
+
+# This main processing function is now correct and doesn't need changes
 def fetch_and_process_concurrently(input_csv_filepath, output_csv_filepath, max_workers=10):
     """
-    Reads events, fetches weather data concurrently using a thread pool,
-    and saves the results to a new CSV file.
+    Reads events, checks for already processed coordinates in the output file,
+    fetches weather data for new events concurrently, and appends the results.
     """
-    if os.path.exists(output_csv_filepath):
-        os.remove(output_csv_filepath)
+    processed_coords = set()
+    COORD_PRECISION = 4
 
     try:
-        with open(input_csv_filepath, mode='r', encoding='utf-8') as infile:
-            rows = list(csv.DictReader(infile))
+        with open(output_csv_filepath, mode='r', encoding='utf-8') as outfile:
+            reader = csv.DictReader(outfile)
+            for row in reader:
+                try:
+                    lat_str = f"{float(row['latitude']):.{COORD_PRECISION}f}"
+                    lon_str = f"{float(row['longitude']):.{COORD_PRECISION}f}"
+                    processed_coords.add((lat_str, lon_str))
+                except (ValueError, KeyError):
+                    continue
+        if processed_coords:
+            print(f"Found {len(processed_coords)} existing unique coordinates in '{output_csv_filepath}'. These will be skipped.")
     except FileNotFoundError:
-        print(f"Error: The file '{input_csv_filepath}' was not found.")
+        print(f"Output file '{output_csv_filepath}' not found. Will create a new one.")
+        
+    try:
+        with open(input_csv_filepath, mode='r', encoding='utf-8') as infile:
+            all_rows = list(csv.DictReader(infile))
+    except FileNotFoundError:
+        print(f"Error: The input file '{input_csv_filepath}' was not found.")
         return
 
-    header_written = False
-    
-    # Use a ThreadPoolExecutor to manage concurrent requests
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Create a future for each row. Pass both the index and the row data.
-        future_to_row = {executor.submit(fetch_single_event, row_data): row_data for row_data in enumerate(rows)}
+    rows_to_process = []
+    for i, row in enumerate(all_rows):
+        try:
+            lat_str = f"{float(row.get('latitude')):.{COORD_PRECISION}f}"
+            lon_str = f"{float(row.get('longitude')):.{COORD_PRECISION}f}"
+            if (lat_str, lon_str) not in processed_coords:
+                rows_to_process.append((i, row))
+        except (ValueError, TypeError):
+            continue
+
+    if not rows_to_process:
+        print("No new events to process. All coordinates are already in the output file.")
+        return
         
-        # Use tqdm to create a progress bar as futures complete
-        for future in tqdm(concurrent.futures.as_completed(future_to_row), total=len(rows), desc="Fetching weather data"):
+    print(f"Total events in input: {len(all_rows)}. New events to fetch: {len(rows_to_process)}.")
+
+    header_written = os.path.exists(output_csv_filepath) and os.path.getsize(output_csv_filepath) > 0
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_row = {executor.submit(fetch_single_event, row_data): row_data for row_data in rows_to_process}
+        
+        for future in tqdm(concurrent.futures.as_completed(future_to_row), total=len(rows_to_process), desc="Fetching new data"):
             try:
-                daily_data_list = future.result() # Get the result from the completed future
+                daily_data_list = future.result()
                 if daily_data_list:
                     with open(output_csv_filepath, mode='a', newline='', encoding='utf-8') as outfile:
-                        fieldnames = daily_data_list[0].keys()
-                        writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+                        writer = csv.DictWriter(outfile, fieldnames=daily_data_list[0].keys())
                         if not header_written:
-                            # Simple check to see if the file is empty to write the header
-                            outfile.seek(0, 2)
-                            if outfile.tell() == 0:
-                                writer.writeheader()
-                                header_written = True
+                            writer.writeheader()
+                            header_written = True
                         writer.writerows(daily_data_list)
             except Exception as e:
-                print(f"An error occurred while processing a result: {e}")
+                print(f"An error occurred while writing a result: {e}")
 
-    print(f"\nAll sequential data successfully processed and saved to '{output_csv_filepath}'")
+    print(f"\nProcessing complete. Data is saved in '{output_csv_filepath}'")
 
 if __name__ == "__main__":
     input_csv = 'combined_landslide_dataset_new.csv' 
@@ -165,6 +207,4 @@ if __name__ == "__main__":
     
     os.makedirs('data', exist_ok=True)
     
-    # Call the new concurrent function
-    # You can adjust max_workers based on your network and the API's limits
-    fetch_and_process_concurrently(input_csv, output_csv_lstm, max_workers=5)
+    fetch_and_process_concurrently(input_csv, output_csv_lstm, max_workers=2)
