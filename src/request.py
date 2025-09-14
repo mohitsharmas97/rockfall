@@ -207,4 +207,4 @@ if __name__ == "__main__":
     
     os.makedirs('data', exist_ok=True)
     
-    fetch_and_process_concurrently(input_csv, output_csv_lstm, max_workers=2)
+    fetch_and_process_concurrently(input_csv, output_csv_lstm, max_workers=5)
