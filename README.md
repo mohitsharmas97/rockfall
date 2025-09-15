@@ -7,6 +7,9 @@
 
 An intelligent system developed for the Smart India Hackathon (SIH) to proactively predict rockfall events in open-pit mines. By leveraging time-series analysis with a deep learning model, we shift from reactive monitoring to a predictive safety framework, safeguarding personnel and equipment.
 
+
+<img width="1024" height="1024" alt="unnamed (2)" src="https://github.com/user-attachments/assets/2490a2fc-b955-4973-8484-54c831c5284b" />
+
 -----
 
 ## Core Idea
