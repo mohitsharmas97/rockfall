@@ -1,0 +1,427 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Landslide Alert System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-section">
+                <h3>🔧 System Status</h3>
+                <div id="api-status">
+                    <span class="status-indicator loading"></span>
+                    <span class="status-text">Checking...</span>
+                </div>
+                <div class="status-metrics">
+                    <div class="metric"><label>Model</label><span id="model-status">...</span></div>
+                    <div class="metric"><label>Scaler</label><span id="scaler-status">...</span></div>
+                </div>
+                <div id="device-info" class="info-box" style="display: none;"></div>
+                <div id="api-error-info" class="warning-box" style="display: none;">
+                    Please ensure the backend server is running:
+                    <code>python app.py</code>
+                </div>
+            </div>
+            <div class="divider"></div>
+            <div class="sidebar-section">
+                <h3>📍 Quick Locations</h3>
+                <select id="quick-locations">
+                    <option value="27.0511,75.8851">Kukas, Rajasthan</option>
+                    <option value="31.1048,77.1734">Shimla, Himachal Pradesh</option>
+                    <option value="27.0360,88.2627">Darjeeling, West Bengal</option>
+                    <option value="11.4064,76.6932">Ooty, Tamil Nadu</option>
+                    <option value="30.4598,78.0664">Mussoorie, Uttarakhand</option>
+                    <option value="32.2396,77.1887">Manali, Himachal Pradesh</option>
+                    <option value="27.3389,88.6065">Gangtok, Sikkim</option>
+                    <option value="25.2703,91.7334">Cherrapunji, Meghalaya</option>
+                    <option value="custom">Custom Location</option>
+                </select>
+            </div>
+            <div class="divider"></div>
+            <div class="sidebar-section">
+                 <details>
+                    <summary><h3>ℹ️ About</h3></summary>
+                    <h4>Model Information</h4>
+                    <p><strong>Model Architecture:</strong><br>
+                        - Bidirectional LSTM Network<br>
+                        - 14 input features<br>
+                        - 10-day temporal sequence<br>
+                        - Trained on historical landslide data</p>
+                    <p><strong>Features Used:</strong><br>
+                        - Weather: Precipitation, temperature, humidity<br>
+                        - Soil: Moisture at multiple depths<br>
+                        - Terrain: Elevation, slope, aspect</p>
+                </details>
+            </div>
+             <div class="sidebar-section disclaimer">
+                <h3>⚠️ Disclaimer</h3>
+                <p>This is a predictive model for informational purposes only. Always consult official geological surveys and local authorities for emergency decisions.</p>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header>
+                <h1>⛰️ Landslide Early Warning System</h1>
+                <p><strong>Advanced AI-powered landslide risk assessment</strong> using BiLSTM neural networks trained on historical weather patterns, topographical data, and geological factors. Get real-time risk predictions for any location worldwide.</p>
+            </header>
+
+            <section class="card">
+                <h2>📍 Location Input</h2>
+                <div id="selected-location-info" class="info-box" style="display:none;"></div>
+                <form id="prediction-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="latitude">Latitude</label>
+                            <input type="number" id="latitude" value="27.0511" min="-90" max="90" step="0.0001" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="longitude">Longitude</label>
+                            <input type="number" id="longitude" value="75.8851" min="-180" max="180" step="0.0001" required>
+                        </div>
+                        <button type="submit" id="predict-button">🔍 Assess Risk</button>
+                    </div>
+                </form>
+                <div id="progress-container" style="display: none;">
+                    <div id="progress-text"></div>
+                    <div class="progress-bar">
+                        <div id="progress-bar-inner"></div>
+                    </div>
+                </div>
+                 <div id="error-message" class="error-box" style="display: none;"></div>
+            </section>
+
+            <section id="results-container" class="card" style="display: none;">
+                <h2>📊 Risk Assessment Results</h2>
+                <div id="risk-alert-box"></div>
+
+                <div class="results-grid">
+                    <div class="metric-card">
+                        <h4>🎯 Risk Probability</h4>
+                        <p id="res-probability" class="metric-value"></p>
+                        <small id="res-probability-delta"></small>
+                    </div>
+                    <div class="metric-card">
+                        <h4>🏔️ Elevation</h4>
+                        <p id="res-elevation" class="metric-value"></p>
+                    </div>
+                    <div class="metric-card">
+                        <h4>📐 Slope</h4>
+                        <p id="res-slope" class="metric-value"></p>
+                    </div>
+                    <div class="metric-card">
+                        <h4>🌧️ 10-Day Rainfall</h4>
+                        <p id="res-rainfall" class="metric-value"></p>
+                    </div>
+                </div>
+                <div class="divider"></div>
+                <div class="details-grid">
+                    <div class="details-left">
+                        <h3>📈 Risk Probability Gauge</h3>
+                        <div class="chart-container">
+                            <canvas id="riskGauge"></canvas>
+                        </div>
+                        <h3>🌤️ Weather Analysis</h3>
+                        <div class="weather-grid">
+                             <div class="metric-card">
+                                <h4>3-Day Rainfall</h4>
+                                <p id="res-rain-3d" class="metric-value"></p>
+                            </div>
+                             <div class="metric-card">
+                                <h4>7-Day Rainfall</h4>
+                                <p id="res-rain-7d" class="metric-value"></p>
+                            </div>
+                             <div class="metric-card">
+                                <h4>Total Rain</h4>
+                                <p id="res-rain-total" class="metric-value"></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="details-right">
+                        <h3>🌍 Location Details</h3>
+                        <div id="location-details-box" class="info-box"></div>
+                        <h3>📋 Risk Interpretation</h3>
+                        <div id="risk-interpretation-box"></div>
+                    </div>
+                </div>
+                <h3>🗺️ Location Map</h3>
+                <div id="map"></div>
+                <details>
+                    <summary><h3>🔬 View Technical Details</h3></summary>
+                    <pre><code id="json-details"></code></pre>
+                </details>
+            </section>
+
+             <section class="card">
+                <h2>📊 Batch Analysis</h2>
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="upload-csv">📤 Upload CSV</button>
+                    <button class="tab-button" data-tab="history">📜 Prediction History</button>
+                </div>
+
+                <div id="upload-csv" class="tab-content active">
+                    <p>Upload a CSV file with `lat` and `lon` columns for batch risk assessment (max 50 locations).</p>
+                    <div class="batch-controls">
+                        <a href="#" id="download-sample-csv" class="button secondary">📥 Download Sample CSV</a>
+                        <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
+                        <button id="upload-csv-button" class="button secondary">📤 Choose File</button>
+                    </div>
+                    <div id="batch-status"></div>
+                    <div id="batch-results-container" style="display: none;">
+                        <h3>Batch Results</h3>
+                        </div>
+                </div>
+
+                <div id="history" class="tab-content">
+                    <h3>📜 Recent Predictions</h3>
+                    <div id="history-table-container"></div>
+                    <button id="clear-history-button" class="button secondary" style="display:none;">🗑️ Clear History</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <footer>
+        <p>⛰️ Landslide Early Warning System v1.0 | Powered by BiLSTM Neural Networks</p>
+        <p>Data sources: Open-Meteo Archive API, Open Topo Data API</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html> --><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rockfall Prediction Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>GeoGuard AI ⛏️</h2>
+                <p>Rockfall Prediction System</p>
+            </div>
+            <div class="divider"></div>
+            <div class="sidebar-section">
+                <h3>⚙️ System Status</h3>
+                <div id="api-status">
+                    <span class="status-indicator loading"></span>
+                    <span class="status-text">Checking...</span>
+                </div>
+                <div class="status-metrics">
+                    <div class="metric"><label>ML Model</label><span id="model-status">...</span></div>
+                    <div class="metric"><label>Scaler</label><span id="scaler-status">...</span></div>
+                </div>
+                <div id="device-info" class="info-box" style="display: none;"></div>
+                <div id="api-error-info" class="warning-box" style="display: none;">
+                    Please ensure the backend server is running:
+                    <code>python app.py</code>
+                </div>
+            </div>
+            <div class="divider"></div>
+            <div class="sidebar-section">
+                <h3>🛰️ Sensor Integration</h3>
+                <div class="sensor-status">
+                    <div class="sensor-item"><span class="status-indicator success"></span> Extensometer #A-12 <span class="sensor-data">0.2mm/hr</span></div>
+                    <div class="sensor-item"><span class="status-indicator success"></span> Seismic Sensor #G-04 <span class="sensor-data">Stable</span></div>
+                    <div class="sensor-item"><span class="status-indicator warning"></span> Piezometer #P-09 <span class="sensor-data">Low Bat.</span></div>
+                    <div class="sensor-item"><span class="status-indicator error"></span> GPS Prism #S-21 <span class="sensor-data">Offline</span></div>
+                </div>
+                 <small>Simulated low-cost hardware status.</small>
+            </div>
+            <div class="divider"></div>
+            <div class="sidebar-section">
+                <h3>📍 Sample Mine Sites</h3>
+                <select id="quick-locations">
+                    <option value="27.0511,75.8851">Kukas Quarry, India</option>
+                    <option value="-33.93,115.17">Margaret River, Australia</option>
+                    <option value="44.46,-110.82">Bingham Canyon, USA</option>
+                    <option value="-22.45,15.03">Rössing Mine, Namibia</option>
+                    <option value="68.21,16.59">Kiruna Mine, Sweden</option>
+                    <option value="custom">Custom Location</option>
+                </select>
+            </div>
+
+            <div class="sidebar-footer">
+                <details>
+                    <summary><h3>ℹ️ About This System</h3></summary>
+                    <h4>Model Information</h4>
+                    <p><strong>Model:</strong> Bidirectional LSTM Network analyzing temporal patterns in geotechnical and weather data to forecast rockfall probability.</p>
+                    <p><strong>Features:</strong> Precipitation, temperature, soil moisture, elevation, slope, and aspect.</p>
+                </details>
+                 <div class="disclaimer">
+                    <p><strong>Disclaimer:</strong> This is a predictive model for planning and informational purposes. Always prioritize on-site geological assessments and official safety protocols.</p>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header>
+                <h1>Rockfall Risk Assessment Dashboard</h1>
+                <p>An AI-powered dashboard for mine planners to identify geological patterns, visualize vulnerable zones, and forecast rockfall events in real-time.</p>
+            </header>
+
+            <section class="card">
+                <h2>🗺️ Site Selection</h2>
+                <div id="selected-location-info" class="info-box" style="display:none;"></div>
+                <form id="prediction-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="latitude">Latitude</label>
+                            <input type="number" id="latitude" value="27.0511" min="-90" max="90" step="0.0001" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="longitude">Longitude</label>
+                            <input type="number" id="longitude" value="75.8851" min="-180" max="180" step="0.0001" required>
+                        </div>
+                        <button type="submit" id="predict-button">🔍 Assess Risk</button>
+                    </div>
+                </form>
+                <div id="map-interaction-prompt">
+                    <p>Or, click on the map below to select a location.</p>
+                </div>
+                <div id="map"></div>
+                <div id="progress-container" style="display: none;">
+                    <div id="progress-text"></div>
+                    <div class="progress-bar">
+                        <div id="progress-bar-inner"></div>
+                    </div>
+                </div>
+                <div id="error-message" class="error-box" style="display: none;"></div>
+            </section>
+
+            <div id="results-and-actions" style="display: none;">
+                <section id="results-container" class="card">
+                    <h2>📊 Risk Assessment Results</h2>
+                    <div id="risk-alert-box"></div>
+                    <div class="results-grid">
+                        <div class="metric-card">
+                            <h4>🎯 Risk Probability</h4>
+                            <p id="res-probability" class="metric-value"></p>
+                            <small id="res-probability-delta"></small>
+                        </div>
+                        <div class="metric-card">
+                            <h4>🏔️ Elevation</h4>
+                            <p id="res-elevation" class="metric-value"></p>
+                        </div>
+                        <div class="metric-card">
+                            <h4>📐 Slope Angle</h4>
+                            <p id="res-slope" class="metric-value"></p>
+                        </div>
+                        <div class="metric-card">
+                            <h4>🌧️ 10-Day Rainfall</h4>
+                            <p id="res-rainfall" class="metric-value"></p>
+                        </div>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="details-grid">
+                        <div class="details-left">
+                             <h3>📈 Risk Probability Gauge</h3>
+                            <div class="chart-container">
+                                <canvas id="riskGauge"></canvas>
+                            </div>
+                            <h3>📋 Recommended Actions</h3>
+                            <div id="risk-interpretation-box"></div>
+                        </div>
+                        <div class="details-right">
+                             <h3>🌍 Location Details</h3>
+                             <div id="location-details-box" class="info-box"></div>
+                            
+                             <h3>🧠 Model Reasoning</h3>
+                             <div id="explanation-box" class="info-box">
+                                 </div>
+                             <h3>🌤️ Weather Analysis</h3>
+                            <div class="weather-grid">
+                                <div class="metric-card">
+                                    <h4>3-Day Rain</h4>
+                                    <p id="res-rain-3d" class="metric-value"></p>
+                                </div>
+                                <div class="metric-card">
+                                    <h4>7-Day Rain</h4>
+                                    <p id="res-rain-7d" class="metric-value"></p>
+                                </div>
+                                <div class="metric-card">
+                                    <h4>Total Rain</h4>
+                                    <p id="res-rain-total" class="metric-value"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                     <details>
+                         <summary><h3>🔬 View Technical JSON Data</h3></summary>
+                         <pre><code id="json-details"></code></pre>
+                     </details>
+                </section>
+                
+                <section class="card">
+                    <h2>🔔 Alert Configuration</h2>
+                    <p>Set up real-time alert mechanisms for high-risk events. (UI Prototype)</p>
+                     <form id="alert-form">
+                         <div class="form-row">
+                             <div class="form-group">
+                                 <label for="sms-number">SMS Notification (e.g., +14155552671)</label>
+                                 <input type="tel" id="sms-number" placeholder="Enter phone number">
+                             </div>
+                             <div class="form-group">
+                                 <label for="email-address">Email Notification</label>
+                                 <input type="email" id="email-address" placeholder="Enter email address">
+                             </div>
+                             <button type="button" id="save-alerts-button">💾 Save Settings</button>
+                         </div>
+                    </form>
+                </section>
+            </div>
+
+            <section class="card">
+                <h2>🗂️ Batch & History</h2>
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="upload-csv">📤 Upload CSV</button>
+                    <button class="tab-button" data-tab="history">📜 Prediction History</button>
+                </div>
+
+                <div id="upload-csv" class="tab-content active">
+                    <p>Upload a CSV file with `lat` and `lon` columns for batch risk assessment (max 50 locations).</p>
+                    <div class="batch-controls">
+                        <a href="#" id="download-sample-csv" class="button secondary">📥 Download Sample</a>
+                        <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
+                        <button id="upload-csv-button" class="button secondary">📤 Choose File</button>
+                    </div>
+                    <div id="batch-status"></div>
+                    <div id="batch-results-container" style="display: none;">
+                        <h3>Batch Results</h3>
+                    </div>
+                </div>
+
+                <div id="history" class="tab-content">
+                    <h3>📜 Recent Predictions</h3>
+                    <div id="history-table-container"></div>
+                    <button id="clear-history-button" class="button secondary" style="display:none;">🗑️ Clear History</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <footer>
+        <p>GeoGuard AI v1.0 | Powered by BiLSTM Neural Networks</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

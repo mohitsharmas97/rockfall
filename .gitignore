@@ -1,2 +1,6 @@
 venv/
 nasadem_data/
+src/backend/__pycache__/
+src/backend/venv/
+.env
+src/backend/.env
