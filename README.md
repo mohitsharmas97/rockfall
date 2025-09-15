@@ -1,79 +1,169 @@
-# ⛰️ AI-Powered Rockfall Prediction System
+# AI-Powered Rockfall Prediction System
 
-##  About The Project
+[](https://www.python.org/downloads/)
+[](https://flask.palletsprojects.com/)
+[](https://pytorch.org/)
+[](LICENSE.md)
 
-This project is an AI-based system designed to predict potential rockfall incidents in open-pit mines, developed for the Smart India Hackathon (SIH). Rockfalls pose a significant threat to personnel and equipment, and our goal is to move from reactive monitoring to proactive, predictive analysis for enhanced safety and operational efficiency.
+An intelligent system developed for the Smart India Hackathon (SIH) to proactively predict rockfall events in open-pit mines. By leveraging time-series analysis with a deep learning model, we shift from reactive monitoring to a predictive safety framework, safeguarding personnel and equipment.
 
-The system processes multi-source data inputs, starting with topographical and environmental data, to train a machine learning model that can identify patterns preceding rockfall events.
+-----
 
+## Core Idea
 
-<img width="1024" height="1024" alt="unnamed (2)" src="https://github.com/user-attachments/assets/7cb1a42e-66e6-4526-beca-3aa6133494ba" />
+Traditional safety protocols often rely on manual inspection or post-event analysis. Our system transforms this paradigm by analyzing temporal data patterns leading up to a potential rockfall. We process historical weather and topographical data into **10-day sequences**, feeding them into a **Bidirectional LSTM with an Attention mechanism**. This model learns to identify subtle, critical precursors to instability, providing a probability-based forecast of rockfall risk.
 
+-----
 
+## System Architecture
 
-###  Core Idea
+The project follows a modular architecture, from raw data ingestion to a user-facing web application.
 
-Our approach is to build a robust dataset by combining historical landslide data with relevant geographical and environmental features. This enriched dataset will be the foundation for training a predictive model capable of assessing rockfall risk in real-time.
+1.  **Data Acquisition**: Collects historical landslide data from the NASA Global Landslide Catalog and corresponding weather data.
+2.  **Preprocessing & Feature Engineering**: Cleans, integrates, and transforms the data into time-series sequences (`X_lstm_ready.npy`, `y_lstm_ready.npy`) suitable for the LSTM model.
+3.  **Deep Learning Model**: A trained Bi-LSTM with Attention model (`rockfall_bilstm_attention.pth`) serves as the predictive core, analyzing sequences to forecast risk.
+4.  **Backend API**: A **Flask** server (`app.py`) wraps the model, exposing prediction endpoints.
+5.  **Frontend Dashboard**: An intuitive web interface for users to input data, view predictions, and visualize risk zones.
 
-The initial phase, demonstrated in our data processing notebook, focuses on:
-* Processing the **NASA Global Landslide Catalog**, which contains over 11,000 recorded events.
-* Filtering these events to a high-risk geological hotspot **(South Asia / Himalayas)**, creating a focused dataset of ~2,500 events.
-* Programmatically downloading corresponding **Digital Elevation Model (DEM)** tiles from NASA's NASADEM dataset.
-* Enriching the landslide data by extracting the precise **elevation** for each event's coordinates.
+   
 
-This creates a foundational dataset ready for further feature engineering and model training.
+-----
 
-## 🛠️ Tech Stack
+## Project Structure
 
-* **Data Processing & Analysis:** Python, Pandas, Rasterio
-* **Geospatial Data Acquisition:** `earthaccess` (for NASA Earthdata API)
-* **Development Environment:** Jupyter Notebook, Google Colab
+The repository is organized to separate data, notebooks, and application source code for clarity and maintainability.
 
-##  Getting Started
+```
+.
+├── 📄 .gitignore
+├── 📄 README.md
+├── 📁 data/
+│   ├── 📄 enhanced_landslide_dataset.csv
+│   ├── 📄 featured_weather_data.csv
+│   ├── 📄 X_lstm_ready.npy      # Feature data (sequences) for the model
+│   └── 📄 y_lstm_ready.npy      # Target data for the model
+├── 📁 notebook/
+│   └── 📄 rockfall_lstm.ipynb   # Jupyter Notebook for experimentation & model dev
+├── 📁 src/
+│   └── 📁 backend/
+│       ├── 📁 static/         # CSS, JS files
+│       ├── 📁 templates/      # HTML templates for Flask
+│       ├── 🐍 app.py          # Main Flask application
+│       ├── 🐍 combine.py      # Utility scripts
+│       └── ...
+├── 🧠 rockfall_bilstm_attention.pth  # The trained PyTorch model
+├── 🔧 scaler.gz                     # The fitted data scaler
+└── ...
+```
+
+-----
+
+## Tech Stack
+
+  - **Backend**: **Flask**
+  - **Deep Learning**: **PyTorch**
+  - **Data Manipulation**: **Pandas, NumPy**
+  - **Geospatial**: **Rasterio, earthaccess**
+  - **Machine Learning**: **Scikit-learn**
+  - **Development**: **Jupyter Notebook**
+
+-----
+
+## Getting Started
 
 To get a local copy up and running, follow these simple steps.
 
 ### Prerequisites
 
-1.  **Python 3.8+**
-2.  **NASA Earthdata Account:** You need a free account to download the elevation data. You can register at [URS Earthdata](https://urs.earthdata.nasa.gov/users/new). The `earthaccess` library will prompt you to log in interactively the first time you run the script.
-3.  **NASA Global Landslide Catalog:** Download the dataset and place it in the project's root directory.
-    * File needed: `Global_Landslide_Catalog_Export_rows.csv`
+  - Python 3.8 or higher
+  - A virtual environment tool like `venv` or `conda`
 
+### Installation & Execution
 
-### Execution
+1.  **Clone the repository:**
 
-1.  Ensure the `Global_Landslide_Catalog_Export_rows.csv` file is in the same directory as the notebook.
-2.  Launch the Jupyter Notebook:
     ```sh
-    jupyter notebook
+    git clone https://github.com/mohitsharmas97/rockfall.git
+    cd rockfall
     ```
-3.  Open the `.ipynb` file and run the cells sequentially. The script will handle authentication, data filtering, downloading, and processing automatically.
 
-## 📈 Project Workflow
+2.  **Create and activate a virtual environment:**
 
-Our project is structured in four key phases, moving from data collection to a fully deployed predictive system.
+    ```sh
+    # For venv
+    python -m venv venv
+    source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 
-**Phase 1: Data Acquisition & Preprocessing ( Completed)**
-* **Input Data:** Utilize the NASA Global Landslide Catalog as the source of historical events.
-* **Geographic Filtering:** Isolate landslides in our defined hotspot boundary (`lon: 60 to 98`, `lat: -2 to 39`) to create a high-quality, relevant dataset.
-* **Topographical Data Acquisition:** Use the `earthaccess` library to automatically download all necessary NASADEM HGT elevation tiles for the hotspot region.
-* **Data Enrichment:** Extract the precise elevation for each landslide's latitude and longitude using the downloaded DEM tiles.
-* **Output:** A clean CSV file (`landslides_hotspot_with_elevation.csv`) ready for the next phase.
+    # For conda
+    conda create --name rockfall_env python=3.8
+    conda activate rockfall_env
+    ```
 
-**Phase 2: Feature Engineering & Data Integration (⏳ In Progress)**
-* **Weather Data Integration:** Use a weather API (e.g., Open-Meteo) to fetch historical data (rainfall, temperature) for the date and location of each landslide.
-* **Topographical Feature Creation:** Calculate advanced features from the DEM tiles, such as **slope**, **aspect** (the direction a slope faces), and **terrain roughness**, which are critical indicators for rockfall risk.
-* **Geotechnical Data (Future Scope):** For a real-world mine, integrate sensor data like displacement, strain, and pore pressure.
+3.  **Install the required dependencies:**
+    
 
-**Phase 3: Model Development & Training**
-* **Model Selection:** Experiment with robust classification models like **XGBoost, LightGBM, or Random Forest** to predict rockfall risk (e.g., High, Medium, Low).
-* **Training:** Train the model on the comprehensive dataset created in the previous phases.
-* **Evaluation:** Rigorously evaluate the model's performance using metrics like Accuracy, Precision, Recall, and F1-Score to ensure its reliability.
+    ```sh
+    pip install flask torch pandas numpy scikit-learn
+    ```
 
-**Phase 4: Deployment & Visualization**
-* **API Development:** Wrap the trained model in a lightweight API using **Flask or FastAPI**. This API will accept new data (e.g., current conditions at a specific mine location) and return a risk prediction.
-* **Dashboard Creation:** Develop a user-friendly web dashboard (using **Streamlit or Dash**) to visualize vulnerable zones on a map, display probability-based forecasts, and allow mine planners to analyze risks.
-* **Alert System:** Implement an automated alert mechanism via **SMS (Twilio) or email (SendGrid)** to notify stakeholders when the predicted risk level exceeds a critical threshold, along with suggested action plans.
+4.  **Navigate to the backend directory and run the Flask application:**
 
----
+    ```sh
+    cd src/backend
+    python app.py
+    ```
+
+5.  **Open your browser** and go to `http://127.0.0.1:5000` to see the application in action\!
+
+-----
+
+## Project Workflow
+
+Our project was developed in four key phases, resulting in a fully integrated system.
+
+### Phase 1: Data Acquisition & Preprocessing (✅ Completed)
+
+  - **Input Data**: Utilized the NASA Global Landslide Catalog.
+  - **Geographic Filtering**: Isolated events in high-risk zones to create a relevant dataset.
+  - **Data Enrichment**: Fetched and integrated elevation and historical weather data for each event.
+  - **Output**: A clean, feature-rich dataset ready for sequence creation.
+
+### Phase 2: Time-Series Feature Engineering (✅ Completed)
+
+  - **Sequence Generation**: Transformed the static data into **10-day sequences**, capturing the temporal dynamics leading up to each landslide event.
+  - **Data Scaling**: Normalized the features using a standard scaler to ensure model stability.
+  - **Output**: The final `X_lstm_ready.npy` and `y_lstm_ready.npy` files used for training.
+
+### Phase 3: Model Development & Training (✅ Completed)
+
+  - **Model Selection**: Chose a **Bidirectional LSTM with an Attention mechanism** to effectively capture long-range dependencies and focus on the most influential time steps.
+  - **Training**: Trained the model on the prepared time-series data until convergence.
+  - **Evaluation**: Assessed the model's performance using metrics like Accuracy, Precision, Recall, and F1-Score to confirm its predictive power.
+
+### Phase 4: Deployment & Visualization (✅ Completed)
+
+  - **API Development**: Encapsulated the trained model and scaler into a lightweight **Flask API** (`app.py`).
+  - **Dashboard Creation**: Developed a user-friendly web dashboard using HTML/CSS and Flask's template engine to visualize predictions.
+  - **Alert System**: Implemented a basic alert mechanism within the frontend to notify users of high-risk predictions.
+
+-----
+
+## Future Scope
+
+  - **Real-time Data Integration**: Integrate live weather data and geotechnical sensor feeds (displacement, strain) for on-the-fly predictions.
+  - **Model Enhancement**: Experiment with more advanced architectures like Transformers for time-series forecasting.
+  - **Cloud Deployment**: Deploy the application on a cloud platform (AWS, GCP, Azure) for scalability and accessibility.
+  - **Advanced Visualization**: Create more detailed risk maps with temporal heatmaps and interactive charts.
+
+-----
+
+## Contributors
+  - [NotAceNinja](https://github.com/pushkar-hue)
+  - [mohitsharmas97](https://github.com/mohitsharmas97)
+
+-----
+
+##  Acknowledgments
+
+  - **Smart India Hackathon** for providing the platform and opportunity.
+  - **NASA** for making the Global Landslide Catalog and NASADEM datasets publicly available.
