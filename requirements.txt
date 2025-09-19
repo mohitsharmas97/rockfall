@@ -1,0 +1,7 @@
+torch
+numpy
+flask
+flask-cors
+requests
+twilio
+python-dotenv
