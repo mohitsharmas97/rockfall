@@ -1,4 +1,4 @@
-torch --index-url https://download.pytorch.org/whl/cpu
+torch 
 numpy
 flask
 flask-cors
