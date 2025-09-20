@@ -1,8 +1,12 @@
-# requirements.txt
-torch==2.8.0+cpu
-torchvision==0.21.0+cpu
-torchaudio==2.8.0+cpu
+# This flag correctly tells pip to look in the PyTorch index in addition to PyPI
 --extra-index-url https://download.pytorch.org/whl/cpu
+
+# PyTorch libraries (version matched)
+torch==2.8.0+cpu
+torchvision==0.23.0+cpu
+torchaudio==2.8.0+cpu
+
+# Other dependencies
 numpy
 flask
 flask-cors
