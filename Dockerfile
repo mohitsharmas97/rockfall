@@ -18,4 +18,4 @@ COPY src/backend/ .
 
 # 6. The command to run your app for production
 # This uses Gunicorn, a proper production server, and listens on the port Railway provides.
-CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "app:app"]
+CMD gunicorn --bind 0.0.0.0:$PORT app:app
