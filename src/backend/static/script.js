@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- Global Variables & Constants ---
-    const API_BASE_URL = "http://127.0.0.1:5000";
+    const API_BASE_URL = "https://rockfall-production-bd29.up.railway.app/";
     let riskGaugeChart = null;
     let map = null;
     let marker = null;
