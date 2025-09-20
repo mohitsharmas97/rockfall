@@ -89,8 +89,11 @@ model = None
 scaler_params = None
 
 try:
-    model_path = 'rockfall_bilstm_attention.pth'
-    scaler_path = 'scaler_params.npz'
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))  # directory of app.py
+    model_path = os.path.join(BASE_DIR, "rockfall_bilstm_attention.pth")
+    scaler_path = os.path.join(BASE_DIR, "scaler_params.npz")
+
+try:
     if not os.path.exists(model_path) or not os.path.exists(scaler_path):
         logger.error(f"CRITICAL: Model or scaler file not found.")
     else:
